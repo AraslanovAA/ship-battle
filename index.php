@@ -1,3 +1,7 @@
+<?php
+session_start();
+?>
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -13,14 +17,15 @@
 try {
     include './logic.php';
     $game = new Logic();
-   
+    $game->setData($_GET);
+    $game->reset();
+    if (isset ($_POST['clickedCell'])){
+        echo $game->userMove($_POST['clickedCell']);
+    }
     } catch (Exception $e) {
     $error  = $e->getMessage();
     }
-
-    if (isset ($_POST['clickedCell'])){
-        echo $_POST['clickedCell'];
-    }
+    
 ?>
 <form method="POST" action="">  
 <table>
@@ -29,7 +34,7 @@ try {
         for($i = 0; $i <10 ; $i++){
             echo "<tr>";
             for($j=0;$j<10;$j++){
-                echo "<td class = '" . $game->getCssClass(10*$i + $j) . "'> <input type='submit' name = 'clickedCell' value='".(10*$i + $j)."'></td>";
+                echo "<td class = '" . $game->getCssClass(10*$i + $j) . "'> <input type='submit' class ='opacityFalse' name = 'clickedCell' value='".(10*$i + $j)."'></td>";
             }
             echo "</tr>";
         }
@@ -38,6 +43,9 @@ try {
         ?>
         
 </table>
+<br><br>
+<a href="./index.php?reset" >Начать сначала</a>
+
 </form>
 
 </body>
