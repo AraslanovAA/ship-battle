@@ -15,7 +15,7 @@ table {
  td {
     border: 1px dotted black;
     background-repeat: no-repeat;
-
+    cursor: pointer;
  }
 
 td input.opacityFalse {

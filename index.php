@@ -34,7 +34,14 @@ try {
         for($i = 0; $i <10 ; $i++){
             echo "<tr>";
             for($j=0;$j<10;$j++){
-                echo "<td class = '" . $game->getCssClass(10*$i + $j) . "'> <input type='submit' class ='opacityFalse' name = 'clickedCell' value='".(10*$i + $j)."'></td>";
+                $className = $game->getCssClass(10*$i + $j);
+                if($className == "water"){
+                    echo "<td class = 'water'> <input type='submit' class ='opacityFalse' name = 'clickedCell' value='".(10*$i + $j)."'></td>";
+                }
+                else{
+                    echo "<td class = '" . $game->getCssClass(10*$i + $j) . "'></td>";
+                }
+                
             }
             echo "</tr>";
         }
