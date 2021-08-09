@@ -16,13 +16,33 @@ server.on('request', (req, res) => {
         console.log('откуда get запрос-то прилетел');
     }
     else{
-        console.log('вот тут получается обрабатываем');
+        if (req.method=='POST'){
+        if(req.url ==='/shoot'){//спрашиваем у бд, а какие вообще есть производители у каждой категории
+            console.log('Зафиксировал shoot пост запрос');
+            let body = [];
+            req.on('data', function(chunk) {
+                body.push(chunk);
+                body = Buffer.concat(body).toString();
+                console.log(body);//успешно получает данные из запроса
+            })
+            
+            req.on('end',function() {
+                    let resObj = {"move" : false, "victory" : true};
+                    var resJSON = JSON.stringify(resObj)
+                    res.writeHead(200, {'Content-Type': 'application/json'});
+                    res.end(resJSON);
+                   
+                })
+
+            }
+        
     }
+}
 })
 
 server.listen(port,host, () =>{
     console.log('сервер работает')
-    createGame('Anton');
+    //createGame('Anton');
 });
 
 function createGame(userName){
