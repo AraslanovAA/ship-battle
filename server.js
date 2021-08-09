@@ -22,15 +22,45 @@ server.on('request', (req, res) => {
 
 server.listen(port,host, () =>{
     console.log('сервер работает')
-    createGame('Anton2');
+    createGame('Anton');
 });
 
 function createGame(userName){
-    fillField();
+ 
+    checkGameExist(userName);
 }
 
+function checkGameExist(userName){//функция проверяет была ли игра с этим пользователем ранее, создаёт новую при отсутствии
 
+     db.any(`SELECT EXISTS(SELECT 1 FROM field WHERE player = '`+userName+`');`).then(data => {
+        console.log('Игра с пользователем ' + userName+' была создана ранее '+data[0]["exists"]);
+        
+        if(!data[0]["exists"]){//если новый пользователь создаём для него новое поле и расставляем корабли в ships
+            let insObj = {
+                "player" : [],
+                "server" : []
+            }; 
+            db.any(`INSERT INTO public.field(hits, player)VALUES ('` + JSON.stringify(insObj) + `'`+`, '`+userName+`') RETURNING id_field`).then(data2 => {
+                console.log('id нового поля: ' + data2[0]["id_field"]);
+                            
+                let ship_arr = fillField();//расставляем кораблики на новом поле и формируем INSERT
+                let ship_ins = `INSERT INTO public.ship(id_field, silk, cells) VALUES`;
+                for(let i = 0; i < ship_arr.length;i++){
+                    ship_ins += `(` + data2[0]["id_field"] +`, false, '` +JSON.stringify(ship_arr[i])+ `' )`;
+                    ship_ins += (i == ship_arr.length-1) ? ';' : ', ';
+                }
+            
+                db.any(ship_ins).then(data2 => {                 
+                    })
+
+                }) 
+        }
+      })
+
+}
 function calculateCell(arr, currCell, move, curLen, shipLen, resArr = []){
+    //функция получает на вход размер корабля и направление в котором ей следует проверить возможно ли расположение корабля
+    //если с указанной точки в указанном направлении возможно расположить корабль вернёт массив с номерами клеток корабля
     let resCell;
     if (move == 'up'){
         if(currCell >= 10){
@@ -94,7 +124,9 @@ function wrap(arr, ship, i){//функция блокирует клетки в�
 
 }
 
-function createShip(arr, shipLen){
+function createShip(arr, shipLen){//функция получает на вход игровое поле и размер корабля который необходиом разместить
+    //случайно выбирает точку на поле и проверяет возможно ли в каком-то из направлений от этой точки расположить корабль
+    //в результате работы в res хранятся номера клеток корабля
     let startPoint;
     let res = false;
     while (res == false){
@@ -114,7 +146,7 @@ function createShip(arr, shipLen){
         arr[res[i]]=1;
     }
     wrap(arr,res,0);
-  
+  return res;
 }
 
 function getRandomIntInclusive(min, max) {
@@ -128,24 +160,25 @@ function fillField(){
     for(let i = 0; i < 100;i++){
         arr[i] = 0; 
     }
-    
-    createShip(arr, 4);
-    createShip(arr, 3);
-    createShip(arr, 3);
-    createShip(arr, 2);
-    createShip(arr, 2);
-    createShip(arr, 2);
-    createShip(arr, 1);
-    createShip(arr, 1);
-    createShip(arr, 1);
-    createShip(arr, 1);
-    let str;
+    let ship_arr = new Array();
+    let shipNum = 0;
+    ship_arr[shipNum++] = createShip(arr, 4);
+    ship_arr[shipNum++] = createShip(arr, 3);
+    ship_arr[shipNum++] = createShip(arr, 3);
+    ship_arr[shipNum++] = createShip(arr, 2);
+    ship_arr[shipNum++] = createShip(arr, 2);
+    ship_arr[shipNum++] = createShip(arr, 2);
+    ship_arr[shipNum++] = createShip(arr, 1);
+    ship_arr[shipNum++] = createShip(arr, 1);
+    ship_arr[shipNum++] = createShip(arr, 1);
+    ship_arr[shipNum++] = createShip(arr, 1);
+    /* let str;
     for(let i = 0; i < 10;i++){
         str = '';
         for(let j = 0; j < 10;j++){
             str += arr[10*i+j] + ' ';
         }
         console.log(str);
-    }
-   
+    } */
+   return ship_arr;
 }
