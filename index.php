@@ -19,6 +19,7 @@ try {
     $game = new Logic();
     $game->setData($_GET);
     $game->reset();
+    $game->testCURL();
     if (isset ($_POST['clickedCell'])){
         echo $game->userMove($_POST['clickedCell']);
     }

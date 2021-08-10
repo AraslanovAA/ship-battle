@@ -17,65 +17,87 @@ server.on('request', (req, res) => {
     }
     else{
         if (req.method=='POST'){
-        if(req.url ==='/shoot'){//спрашиваем у бд, а какие вообще есть производители у каждой категории
-            console.log('Зафиксировал shoot пост запрос');
-            let body = [];
-            req.on('data', function(chunk) {
-                body.push(chunk);
-                body = Buffer.concat(body).toString();
-                console.log(body);//успешно получает данные из запроса
-            })
-            
-            req.on('end',function() {
-                    let resObj = {"move" : false, "victory" : true};
-                    var resJSON = JSON.stringify(resObj)
-                    res.writeHead(200, {'Content-Type': 'application/json'});
-                    res.end(resJSON);
-                   
-                })
+                        if(req.url ==='/shoot'){//спрашиваем у бд, а какие вообще есть производители у каждой категории
 
-            }
-        
+                            (async function () {
+                            let body = [];
+                        await req.on('data', function(chunk) {
+                                body.push(chunk);
+                                body = Buffer.concat(body).toString();
+                                body = JSON.parse(body);//успешно полуили данные
+                            
+                           
+                        })
+
+                        let a = await checkGameExist(body["user"]);
+                        if(a){//проверили что игра с данным пользователем уже идёт, либо создали для него записи в бд
+                            console.log(a);
+                            console.log('событие1111');
+                        }
+                        console.log(a);
+                        console.log('событие1');
+
+                        console.log('событие2');
+                        let resObj = {"move" : false, "victory" : true};
+                        var resJSON = JSON.stringify(resObj)
+                        res.writeHead(200, {'Content-Type': 'application/json'});
+                        res.end(resJSON);
+                    })();
+                            
+                            /* req.on('end',function() {
+                                console.log('событие2');
+                                    let resObj = {"move" : false, "victory" : true};
+                                    var resJSON = JSON.stringify(resObj)
+                                    res.writeHead(200, {'Content-Type': 'application/json'});
+                                    res.end(resJSON);
+                                    
+                                }) */
+                                
+                            
+                            
+                        }
+                        
     }
-}
+        }
 })
 
 server.listen(port,host, () =>{
     console.log('сервер работает')
-    //createGame('Anton');
+
 });
 
-function createGame(userName){
- 
-    checkGameExist(userName);
+async function createGame(userName){
+
+    let insObj = {
+        "player" : [],
+        "server" : []
+    }; 
+    db.any(`INSERT INTO public.field(hits, player)VALUES ('` + JSON.stringify(insObj) + `'`+`, '`+userName+`') RETURNING id_field`).then(data2 => {
+        console.log('id нового поля: ' + data2[0]["id_field"]);
+                    
+        let ship_arr = fillField();//расставляем кораблики на новом поле и формируем INSERT
+        let ship_ins = `INSERT INTO public.ship(id_field, silk, cells) VALUES`;
+        for(let i = 0; i < ship_arr.length;i++){
+            ship_ins += `(` + data2[0]["id_field"] +`, false, '` +JSON.stringify(ship_arr[i])+ `' )`;
+            ship_ins += (i == ship_arr.length-1) ? ';' : ', ';
+        }
+    
+        db.any(ship_ins).then(data2 => {                 
+            })
+            return true;    
+        }) 
 }
 
-function checkGameExist(userName){//функция проверяет была ли игра с этим пользователем ранее, создаёт новую при отсутствии
+async  function checkGameExist(userName){//функция проверяет была ли игра с этим пользователем ранее, создаёт новую при отсутствии
 
-     db.any(`SELECT EXISTS(SELECT 1 FROM field WHERE player = '`+userName+`');`).then(data => {
+     await db.any(`SELECT EXISTS(SELECT 1 FROM field WHERE player = '`+userName+`');`).then(data => {
         console.log('Игра с пользователем ' + userName+' была создана ранее '+data[0]["exists"]);
         
         if(!data[0]["exists"]){//если новый пользователь создаём для него новое поле и расставляем корабли в ships
-            let insObj = {
-                "player" : [],
-                "server" : []
-            }; 
-            db.any(`INSERT INTO public.field(hits, player)VALUES ('` + JSON.stringify(insObj) + `'`+`, '`+userName+`') RETURNING id_field`).then(data2 => {
-                console.log('id нового поля: ' + data2[0]["id_field"]);
-                            
-                let ship_arr = fillField();//расставляем кораблики на новом поле и формируем INSERT
-                let ship_ins = `INSERT INTO public.ship(id_field, silk, cells) VALUES`;
-                for(let i = 0; i < ship_arr.length;i++){
-                    ship_ins += `(` + data2[0]["id_field"] +`, false, '` +JSON.stringify(ship_arr[i])+ `' )`;
-                    ship_ins += (i == ship_arr.length-1) ? ';' : ', ';
-                }
-            
-                db.any(ship_ins).then(data2 => {                 
-                    })
-
-                }) 
+            createGame(userName);
         }
-      })
+              })
+      return true; 
 
 }
 function calculateCell(arr, currCell, move, curLen, shipLen, resArr = []){
