@@ -1,14 +1,12 @@
 /*
-TODO LIST:
-1. реализовать новую игру
-3. отдавать на клиент расположение кораблей на его поле
+сервер реагирует на запросы 2 видов
+1- запрос с выстрелом по указанной клетке
+2- запрос о количестве не потопленных кораблей
 */
 
 const http = require('http');
-const url = require('url');
 const port = 3000
 const host = 'localhost'
-const fs = require('fs');
 
 var pgp = require('pg-promise')();
 var cn = {host: 'localhost', port: 5433, database: 'postgres', user: 'postgres', password: '1'};
@@ -34,7 +32,6 @@ server.on('request', (req, res) => {
                     body.push(chunk);
                     body = Buffer.concat(body).toString();
                     body = JSON.parse(body);//успешно полуили данные
-                console.log(body);
                 log_sql('info', chunk + '/shoot');
             })
             /* 
@@ -101,14 +98,13 @@ server.on('request', (req, res) => {
                 8.обновить информацию в бд если нужно
             */
                 let hitCell_server = await getHitCell_sql(serverName);//находим клетку по которой сервер еще не стрелял
-                console.log('собираюсь стрелять в клетку '+ hitCell_server['cell'] + " в поле с id: " + hitCell_server['id_field'] );
                 let ship_server = await shoot_sql(serverName, hitCell_server["cell"], hitCell_server['id_field']);
             
                 if (!isEmpty(ship_server)){//если получили массив клеток корабля, значит попали не по пустой клетке
                     //тогда нужно проверить добили мы кораблик или нет/ производился ли выстрел по всем клеткам корабля
                     let silk = await checkSilk_sql(serverName, ship_server[0]['cells']);
                     if(silk){//тогда кораблю необходимо поменять статус в таблице ship
-                    await sink_sql(body["cell"], checkRepeat['id_field'])
+                    await sink_sql(hitCell_server["cell"], hitCell_server['id_field'])
                     //сервер потопил корабль
                     resObj['server_shoot'] = "kill";
                     resObj['server_cell'] = ship_server[0]['cells'];
@@ -151,7 +147,7 @@ server.on('request', (req, res) => {
                     body.push(chunk);
                     body = Buffer.concat(body).toString();
                     body = JSON.parse(body);//успешно полуили данные
-                console.log(body);
+                    
                 log_sql('info', chunk + '/numShips');
             })
             
@@ -161,6 +157,11 @@ server.on('request', (req, res) => {
             }
             let serverName = body["user"] +'/server';
             resObj['NumServerShips'] = await numShips_sql(serverName);
+            if((resObj['NumServerShips'] == 0) || (resObj['numUserShips'] == 0)){
+                eraseGame(body["user"],serverName);//если у одного из игроков не осталось кораблей удаляем игру
+                //при следующем запросе с выстрелом от этого игрока создастся новая игра
+                //на клиенте пользователь не сможет продолжить игру не сбросив данные сессии
+            }
             var resJSON = JSON.stringify(resObj)
             res.writeHead(200, {'Content-Type': 'application/json'});
             res.end(resJSON);
@@ -170,6 +171,15 @@ server.on('request', (req, res) => {
     }
         }
 })
+    function eraseGame(userName, serverName){
+        let deleteUserGame = `DELETE FROM public.ship where id_field = (SELECT id_field from field where player = '`+userName+`');
+        DELETE FROM public.field where player = '`+userName+`'; `;
+        let deleteServerGame = `DELETE FROM public.ship where id_field = (SELECT id_field from field where player = '`+serverName+`');
+        DELETE FROM public.field where player = '`+serverName+`'; `;
+        db.any(deleteUserGame + deleteServerGame).then(data => {
+
+        });
+    }
 
     function log_sql(log_type, log_info){
         //функция сохранения логов об обращениях пользователей
@@ -188,13 +198,9 @@ server.on('request', (req, res) => {
         let result;
         let id_field;
         await db.any(selectHits).then(data => {//получаем true если по клетке уже стреляли
-            console.log(data);
             result = data[0]["hits"]['player'];
             id_field = data[0]["id_field"];
             })
-
-            console.log(result)
-            console.log('выше резалт')
             let possibleCell = getRandomIntInclusive(0,99);
             if(!isEmpty(result)){
                    while(result.indexOf(possibleCell) != -1){
