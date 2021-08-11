@@ -1,3 +1,12 @@
+/*
+TODO LIST:
+1. обрабатывать на клиент массив kill
+2. реализовать новую игру
+3. реализовать обработку запросов на количество оставшихся кораблей
+4. добавить второе поле для сервера
+
+*/
+
 const http = require('http');
 const url = require('url');
 const port = 3000
@@ -10,50 +19,91 @@ var db = pgp(cn);
 
 
 const server = http.createServer();
-
+server.listen(port,host, () =>{
+    console.log('сервер работает')
+    
+});
 server.on('request', (req, res) => {
     if (req.method=='GET'){
         console.log('откуда get запрос-то прилетел');
     }
     else{
         if (req.method=='POST'){
-                        if(req.url ==='/shoot'){//спрашиваем у бд, а какие вообще есть производители у каждой категории
+            if(req.url ==='/shoot'){
 
-                            (async function () {
-                            let body = [];
-                        await req.on('data', function(chunk) {
-                                body.push(chunk);
-                                body = Buffer.concat(body).toString();
-                                body = JSON.parse(body);//успешно полуили данные
-                            
-                           
-                        })
+                (async function () {
+                let body = [];
+            await req.on('data', function(chunk) {
+                    body.push(chunk);
+                    body = Buffer.concat(body).toString();
+                    body = JSON.parse(body);//успешно полуили данные
+                console.log(body);
+                
+            })
+            /* 
+            При получении запроса проверяем ведётся ли в БД игра с таким пользователем
+                если игра не существует создаётся запись о пользователе в таблице field и расставляются корабли в таблице ship
+            */
+            let newUser = await checkGameExist_sql(body["user"]);
+            if (!newUser){
+                let id_field = await createNewField_sql(body["user"]);
+                let fieldFilled = await fillField_sql(id_field);
+            }
+           /* после того как убедились, что пользователь существует обрабатываем выстрел
+           при выстреле по клетке:
+    1. проверить не стреляли ли по этой клетке раньше? если стреляли то вернуть состояние клетки
+    2. записываем сделанный ход в таблицу field
+    3. проверяем по таблице ships есть ли в этой клетке корабль
+        3.1 при попадении в корабль проверяем убили корабль или нет
+            если потопили вовращаем массив с клетками всего потопленного корабля и состоянием kill
+            если не потопили возвращаем состояние hit
+        3.2. при промахе возвращаем состояние miss
+    */
+                  
+            let checkRepeat = await checkRepeat_sql(body["user"], body["cell"]);
+            let resObj;
+            if(!checkRepeat['result']){
+            let ship = await shoot_sql(body["user"], body["cell"], checkRepeat['id_field']);
+            
+            if (!isEmpty(ship)){//если получили массив клеток корабля, значит попали не по пустой клетке
+                //тогда нужно проверить добили мы кораблик или нет/ производился ли выстрел по всем клеткам корабля
+                let silk = await checkSilk_sql(body["user"], ship[0]['cells']);
+                if(silk){//тогда кораблю необходимо поменять статус в таблице ship
+                    await sink_sql(body["cell"], checkRepeat['id_field'])
+                    resObj = {//возвращаем уничтожение корабля
+                        "shoot_result" : "kill",
+                        "cell" : ship[0]['cells']
+                    }
+                }
+                else{
+                    resObj = {//возвращаем попадение в корабль
+                        "shoot_result" : "hit",
+                        "cell" : body["cell"]
+                    }
+                }
 
-                        let a = await checkGameExist(body["user"]);
-                        if(a){//проверили что игра с данным пользователем уже идёт, либо создали для него записи в бд
-                            console.log(a);
-                            console.log('событие1111');
-                        }
-                        console.log(a);
-                        console.log('событие1');
+            }
+            else{//если попали по пустой клетке то возвращаем мисс
+                resObj = {
+                    "shoot_result" : "miss",
+                    "cell" : body["cell"]
+                }
+            }
 
-                        console.log('событие2');
-                        let resObj = {"move" : false, "victory" : true};
-                        var resJSON = JSON.stringify(resObj)
-                        res.writeHead(200, {'Content-Type': 'application/json'});
-                        res.end(resJSON);
-                    })();
-                            
-                            /* req.on('end',function() {
-                                console.log('событие2');
-                                    let resObj = {"move" : false, "victory" : true};
-                                    var resJSON = JSON.stringify(resObj)
-                                    res.writeHead(200, {'Content-Type': 'application/json'});
-                                    res.end(resJSON);
-                                    
-                                }) */
-                                
-                            
+
+            }
+            else{//если запрос с атакой по указанной клетке уже был, то берем состояние клетки из бд
+                let a = await getCondition_sql(body["cell"], checkRepeat['id_field']);
+                resObj = {
+                    "shoot_result" : a,
+                    "cell" : body["cell"]
+                }
+            }
+
+            var resJSON = JSON.stringify(resObj)
+            res.writeHead(200, {'Content-Type': 'application/json'});
+            res.end(resJSON);
+        })();     
                             
                         }
                         
@@ -61,45 +111,99 @@ server.on('request', (req, res) => {
         }
 })
 
-server.listen(port,host, () =>{
-    console.log('сервер работает')
+    async function checkRepeat_sql(username,cell){
+        let checkCorrectShoot = `SELECT (field.hits->'player')::jsonb @> '`+cell+`'::jsonb as result, id_field from field where player = '`+username+`';`;
+    let result;
+    await db.any(checkCorrectShoot).then(data1 => {//получаем true если по клетке уже стреляли
+    result = data1[0];
+    })
+    return result;
+}
+    async function shoot_sql(username,cell, id_field){
+        //если по клетке не стреляли тогда делаем выстрел и проверяем принадлежит ли указанная клетка какому-то из кораблей
+        let shoot = `UPDATE field SET hits = jsonb_set(hits, '{player}', (hits->'player' || '`+cell+`' ::jsonb) ) 	WHERE player = '`+username+`';`;
+        let getShip = `SELECT cells from ship where (id_field = `+id_field +`) AND ((ship.cells)::jsonb @> '`+cell+`'::jsonb );`;
+        let result;    
+        await db.any(shoot + getShip).then(data2 => {//data[0]['cells] - содержит все клетки корабля, проверить по каждой ли клетке производили выстрел
+            result = data2;
+        })
+        return result;
+    }
 
-});
+    async function checkSilk_sql(username, cells){
+        let result;
+        let checkKill = `SELECT (field.hits->'player')::jsonb @> '[`+cells+`]'::jsonb as result from field where player = '`+username+`';`;
+        await db.any(checkKill).then(data => {
+            result = data[0]['result'];
+                })
+        return result;
+    }
 
-async function createGame(userName){
+    async function sink_sql(cell, id_field){
+
+        let updateSilk = `UPDATE ship SET silk = true WHERE (id_field = `+id_field+`) AND (cells::jsonb @> '`+cell+`' ::jsonb);`;
+                
+        await db.any(updateSilk).then(data => {
+                    
+                })
+                return true;
+    }
+    async function getCondition_sql(cell, id_field){
+        let selectSink = `SELECT silk from ship where (id_field = `+id_field+`) AND (cells::jsonb @> '[`+cell+`]'::jsonb);`;
+        let result;
+        await db.any(selectSink).then(data => {
+                   if(!isEmpty(data) ){
+                        result = (data[0]['silk']) ? "kill" : "hit";
+                   }
+                   else{
+                       result = "miss";
+                   }
+        })
+        return result;
+
+    }
+
+function isEmpty(obj) {
+    return Object.keys(obj).length === 0;
+  }
+
+
+
+async function fillField_sql(id_field){
+    let ship_arr = fillField();//расставляем кораблики на новом поле и формируем INSERT
+    let ship_ins = `INSERT INTO public.ship(id_field, silk, cells) VALUES`;
+    for(let i = 0; i < ship_arr.length;i++){
+        ship_ins += `(` + id_field +`, false, '` +JSON.stringify(ship_arr[i])+ `' )`;
+        ship_ins += (i == ship_arr.length-1) ? ';' : ', ';
+    }
+    let result;
+    await db.any(ship_ins).then(data => {    
+        result = true;
+        })
+        return result;
+}
+async function createNewField_sql(userName){
 
     let insObj = {
         "player" : [],
         "server" : []
     }; 
-    db.any(`INSERT INTO public.field(hits, player)VALUES ('` + JSON.stringify(insObj) + `'`+`, '`+userName+`') RETURNING id_field`).then(data2 => {
-        console.log('id нового поля: ' + data2[0]["id_field"]);
-                    
-        let ship_arr = fillField();//расставляем кораблики на новом поле и формируем INSERT
-        let ship_ins = `INSERT INTO public.ship(id_field, silk, cells) VALUES`;
-        for(let i = 0; i < ship_arr.length;i++){
-            ship_ins += `(` + data2[0]["id_field"] +`, false, '` +JSON.stringify(ship_arr[i])+ `' )`;
-            ship_ins += (i == ship_arr.length-1) ? ';' : ', ';
-        }
-    
-        db.any(ship_ins).then(data2 => {                 
-            })
-            return true;    
+    let res_idField;
+    await db.any(`INSERT INTO public.field(hits, player)VALUES ('` + JSON.stringify(insObj) + `'`+`, '`+userName+`') RETURNING id_field`).then(data2 => {
+        res_idField = data2[0]["id_field"];
         }) 
+        return res_idField;
 }
 
-async  function checkGameExist(userName){//функция проверяет была ли игра с этим пользователем ранее, создаёт новую при отсутствии
-
+async  function checkGameExist_sql(userName){//функция проверяет была ли игра с этим пользователем ранее, создаёт новую при отсутствии
+let a;
      await db.any(`SELECT EXISTS(SELECT 1 FROM field WHERE player = '`+userName+`');`).then(data => {
-        console.log('Игра с пользователем ' + userName+' была создана ранее '+data[0]["exists"]);
-        
-        if(!data[0]["exists"]){//если новый пользователь создаём для него новое поле и расставляем корабли в ships
-            createGame(userName);
-        }
+             a = data;      
               })
-      return true; 
-
-}
+        return a[0]["exists"];
+        
+    }
+   
 function calculateCell(arr, currCell, move, curLen, shipLen, resArr = []){
     //функция получает на вход размер корабля и направление в котором ей следует проверить возможно ли расположение корабля
     //если с указанной точки в указанном направлении возможно расположить корабль вернёт массив с номерами клеток корабля
@@ -214,13 +318,6 @@ function fillField(){
     ship_arr[shipNum++] = createShip(arr, 1);
     ship_arr[shipNum++] = createShip(arr, 1);
     ship_arr[shipNum++] = createShip(arr, 1);
-    /* let str;
-    for(let i = 0; i < 10;i++){
-        str = '';
-        for(let j = 0; j < 10;j++){
-            str += arr[10*i+j] + ' ';
-        }
-        console.log(str);
-    } */
+    
    return ship_arr;
 }
