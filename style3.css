@@ -25,6 +25,13 @@ td input.opacityFalse {
    opacity: 0;
    cursor: pointer;
 }
+td input.visibleFalse {
+   display: block;
+   width: 100%;
+   height: 100%;
+   visibility: hidden;
+   cursor: pointer;
+}
  td.water{
     background-image: url("./images/water.png");
  }

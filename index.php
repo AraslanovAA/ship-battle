@@ -19,7 +19,7 @@ try {
     $game = new Logic();
     $game->setData($_GET);
     $game->reset();
-    $game->testCURL();
+    //$game->testCURL();
     if (isset ($_POST['clickedCell'])){
         echo $game->userMove($_POST['clickedCell']);
     }
@@ -40,7 +40,7 @@ try {
                     echo "<td class = 'water'> <input type='submit' class ='opacityFalse' name = 'clickedCell' value='".(10*$i + $j)."'></td>";
                 }
                 else{
-                    echo "<td class = '" . $game->getCssClass(10*$i + $j) . "'></td>";
+                    echo "<td class = '" . $game->getCssClass(10*$i + $j) . "'><input type='submit' class ='visibleFalse' name = 'clickedCell' value='".(10*$i + $j)."'></td>";
                 }
                 
             }
