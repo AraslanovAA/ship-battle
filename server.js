@@ -1,7 +1,7 @@
 /*
 TODO LIST:
-2. реализовать новую игру
-5. добавить логи
+1. реализовать новую игру
+3. отдавать на клиент расположение кораблей на его поле
 */
 
 const http = require('http');
@@ -35,7 +35,7 @@ server.on('request', (req, res) => {
                     body = Buffer.concat(body).toString();
                     body = JSON.parse(body);//успешно полуили данные
                 console.log(body);
-                
+                log_sql('info', chunk + '/shoot');
             })
             /* 
             При получении запроса проверяем ведётся ли в БД игра с таким пользователем
@@ -89,7 +89,7 @@ server.on('request', (req, res) => {
                     }
             }
             //сформировали результат выстрела пользователя, очередь сервера делать выстрел
-            //TODO здесь
+            //здесь
             /*повторяем алгоритм для выстрела сервера
                 1. полуить массив клеток в которые сервер уже стрелял
                 2. сгенерировать число
@@ -152,11 +152,15 @@ server.on('request', (req, res) => {
                     body = Buffer.concat(body).toString();
                     body = JSON.parse(body);//успешно полуили данные
                 console.log(body);
+                log_sql('info', chunk + '/numShips');
             })
+            
             let numUserShips = await numShips_sql(body["user"]);
             let resObj = {
                 "numUserShips" : numUserShips
             }
+            let serverName = body["user"] +'/server';
+            resObj['NumServerShips'] = await numShips_sql(serverName);
             var resJSON = JSON.stringify(resObj)
             res.writeHead(200, {'Content-Type': 'application/json'});
             res.end(resJSON);
@@ -166,6 +170,16 @@ server.on('request', (req, res) => {
     }
         }
 })
+
+    function log_sql(log_type, log_info){
+        //функция сохранения логов об обращениях пользователей
+        let insertLOG = `INSERT INTO public.log(
+            type, log, change_date, create_date)
+            VALUES ('`+log_type+`', '`+log_info+`', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`;
+            db.any(insertLOG).then(data => {
+
+            });
+            }
 
     async function getHitCell_sql(servername){
         //функция получает массив клеток по которым сервер уже делал выстрел
