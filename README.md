@@ -1,2 +1,5 @@
 # ship-battle
-морской бой на php
+морской бой 
+клиент php
+сервер node.js
+СУБД postgresql
