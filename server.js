@@ -11,7 +11,17 @@ const host = 'localhost'
 var pgp = require('pg-promise')();
 var cn = {host: 'localhost', port: 5433, database: 'postgres', user: 'postgres', password: '1'};
 var db = pgp(cn); 
-
+const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'OPTIONS, POST, GET',
+    'Access-Control-Max-Age': 2592000, // 30 days
+      };
+const headersJSON = {
+'Access-Control-Allow-Origin': '*',
+'Access-Control-Allow-Methods': 'OPTIONS, POST, GET',
+'Access-Control-Max-Age': 2592000, // 30 days
+'Content-Type': 'application/json'
+    };
 
 const server = http.createServer();
 server.listen(port,host, () =>{
@@ -23,17 +33,28 @@ server.on('request', (req, res) => {
         console.log('откуда get запрос-то прилетел');
     }
     else{
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204, headers);
+            res.end();
+            return;
+          }
         if (req.method=='POST'){
             if(req.url ==='/shoot'){
 
-                (async function () {
+                
                 let body = [];
-            await req.on('data', function(chunk) {
+            req.on('data', function(chunk) {
                     body.push(chunk);
                     body = Buffer.concat(body).toString();
                     body = JSON.parse(body);//успешно полуили данные
-                log_sql('info', chunk + '/shoot');
             })
+                
+            req.on('end', ()=>{
+                (async function () {
+            
+            
+            log_sql('info', body + '/shoot');
+            
             /* 
             При получении запроса проверяем ведётся ли в БД игра с таким пользователем
                 если игра не существует создаётся запись о пользователе в таблице field и расставляются корабли в таблице ship
@@ -133,45 +154,50 @@ server.on('request', (req, res) => {
             }
 
             var resJSON = JSON.stringify(resObj)
-            res.writeHead(200, {'Content-Type': 'application/json'});
+            res.writeHead(200, headersJSON);
             res.end(resJSON);
         })();     
-                            
+    });                 
                         }
             
             if(req.url ==='/numShips'){
 
-                (async function () {   
+                 
                     let body = [];
-            await req.on('data', function(chunk) {
+            req.on('data', function(chunk) {
                     body.push(chunk);
                     body = Buffer.concat(body).toString();
                     body = JSON.parse(body);//успешно полуили данные
-                    
-                log_sql('info', chunk + '/numShips');
-            })
+                });
+                
+            req.on('end', ()=> {
+                (async function () {  
+            
+                log_sql('info', body + '/numShips');
+            
             
             let numUserShips = await numShips_sql(body["user"]);
             let resObj = {
                 "numUserShips" : numUserShips
             }
             let serverName = body["user"] +'/server';
-            resObj['NumServerShips'] = await numShips_sql(serverName);
-            if((resObj['NumServerShips'] == 0) || (resObj['numUserShips'] == 0)){
-                eraseGame(body["user"],serverName);//если у одного из игроков не осталось кораблей удаляем игру
+            resObj['numServerShips'] = await numShips_sql(serverName);
+            if((resObj['numServerShips'] == 0) || (resObj['numUserShips'] == 0)){
+                eraseGame_sql(body["user"],serverName);//если у одного из игроков не осталось кораблей удаляем игру
                 //при следующем запросе с выстрелом от этого игрока создастся новая игра
                 //на клиенте пользователь не сможет продолжить игру не сбросив данные сессии
             }
             var resJSON = JSON.stringify(resObj)
-            res.writeHead(200, {'Content-Type': 'application/json'});
+            res.writeHead(200, headersJSON);
             res.end(resJSON);
                 })()
+            });
             }
 
     }
         }
 })
-    function eraseGame(userName, serverName){
+    function eraseGame_sql(userName, serverName){
         let deleteUserGame = `DELETE FROM public.ship where id_field = (SELECT id_field from field where player = '`+userName+`');
         DELETE FROM public.field where player = '`+userName+`'; `;
         let deleteServerGame = `DELETE FROM public.ship where id_field = (SELECT id_field from field where player = '`+serverName+`');
@@ -220,6 +246,8 @@ server.on('request', (req, res) => {
     let result;
     await db.any(selectCountShips).then(data1 => {//получаем true если по клетке уже стреляли
     result = data1[0]["count"];
+    console.log('количество кораблей у ' + username);
+    console.log(data1);
     })
     return result;
 }
