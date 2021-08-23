@@ -1,6 +1,7 @@
 <template>
   <div>
     <div v-if="endGame" >{{victorySTR}}</div>
+    <div class="container">
   <table>
     <caption>кораблей противника: {{enemyShips}}</caption>
     <tbody>
@@ -9,7 +10,15 @@
       </tr>
     </tbody>
   </table>
-  </div>
+  <table>
+    <caption>кораблей игрока: {{userShips}}</caption>
+    <tbody>
+      <tr v-for="(rowUser,indexRow) in userTable" :key="indexRow">
+        <td v-for="(cellUser,indElemInRowUser) in rowUser" :key="indElemInRowUser" v-bind:class="cellUser"> </td>
+      </tr>
+    </tbody>
+  </table>
+  </div></div>
 </template>
 
 <script>
@@ -28,29 +37,38 @@ export default {
   },
   created(){
     for(let i = 0; i < 10;i++){
-      let td = []
+      let tdServer = [];
+      let tdUser = [];
       for(let j = 0; j< 10;j++){
-        td.push('water');
+        tdServer.push('water');
+        tdUser.push('water');
       }
-      this.enemyTable.push(td);
+      this.enemyTable.push(tdServer);
+      this.userTable.push(tdUser);
+
     }
+    
       if (this.getCookie('userName') == ''){
         document.cookie = 'userName=' + Date.now();
       }
   },
   methods:{
     resetGame(){
+      this.enemyShips = 10;
+      this.userShips = 10;
       this.endGame = false;
       for(let i = 0; i < 10;i++){
       
       for(let j = 0; j< 10;j++){
         this.enemyTable[i][j] = 'water';
+        this.userTable[i][j] = 'water';
       }
       
     }
     },
     async shoot(indexRow,indexElem){
         if(this.endGame == false){
+          if(this.enemyTable[indexRow][indexElem] == 'water'){
          let result = await fetch('http://localhost:3000/shoot', {
            method : 'POST',
            header : {
@@ -65,14 +83,27 @@ export default {
          });
          let resultJSON = await result.json();
          this.enemyTable[indexRow][indexElem] = resultJSON['shoot_result'];
-         if(resultJSON['shoot_result'] == 'kill'){
+          if(resultJSON['shoot_result'] == 'kill'){
            for(let i =0; i< resultJSON['cell'].length;i++){
-             let cellNum = resultJSON['cell'][i];
-             this.enemyTable[Math.trunc(cellNum/10)][cellNum % 10] = resultJSON['shoot_result']
+             this.enemyTable[Math.trunc(resultJSON['cell'][i]/10)][resultJSON['cell'][i] % 10] = resultJSON['shoot_result'];
            }
+          }  
+
+         if(resultJSON['server_shoot'] != 'kill'){
+           this.userTable[Math.trunc(resultJSON['server_cell']/10)][resultJSON['server_cell']%10] = resultJSON['server_shoot'];
+         }
+         else{
+           for(let i =0; i< resultJSON['server_cell'].length;i++){
+             this.userTable[Math.trunc(resultJSON['server_cell'][i]/10)][resultJSON['server_cell'][i] % 10] = resultJSON['server_shoot'];
+           }
+         }
+         
+
+         if((resultJSON['shoot_result'] == 'kill') || (resultJSON['server_shoot'] == 'kill')){
             await this.getNumShips();
-         }  
+         }
          console.log(resultJSON);
+          }
         }
         else{
           this.resetGame();
@@ -143,10 +174,7 @@ imageName(indexRow,indexElem){
    justify-content: flex-start;
 
 }
-form{
-   
-   margin-right: 10px;
-}
+
 table {
     border-collapse: collapse;
     /*убираем пустые промежутки между ячейками*/
@@ -154,7 +182,7 @@ table {
     /*устанавливаем для таблицы внешнюю границу серого цвета толщиной 1px*/
     width: 500px;
     height: 500px;
-    
+    margin-right: 10px;
     
  }
  caption {
