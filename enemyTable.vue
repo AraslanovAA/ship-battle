@@ -1,23 +1,29 @@
 <template>
-  
+  <div>
+    <div v-if="endGame" >{{victorySTR}}</div>
   <table>
     <caption>кораблей противника: {{enemyShips}}</caption>
     <tbody>
       <tr v-for="(row,indexRow) in enemyTable" :key="indexRow">
-        <td v-for="(cell,indElemInRow) in row" :key="indElemInRow" @click="change(indexRow,indElemInRow)" v-bind:class="cell"> </td>
+        <td v-for="(cell,indElemInRow) in row" :key="indElemInRow" @click="shoot(indexRow,indElemInRow)" v-bind:class="cell"> </td>
       </tr>
     </tbody>
   </table>
-  
+  </div>
 </template>
 
 <script>
+
 export default {
   name: 'enemyTable',
     data(){
     return {
+    endGame : false,
+    victorySTR : '',
     enemyShips : 10,
-    enemyTable : []
+    enemyTable : [],
+    userShips : 10,
+    userTable : []
     }
   },
   created(){
@@ -28,13 +34,84 @@ export default {
       }
       this.enemyTable.push(td);
     }
-     
+      if (this.getCookie('userName') == ''){
+        document.cookie = 'userName=' + Date.now();
+      }
   },
   methods:{
-    change(indexRow,indexElem){
-      this.enemyTable[indexRow][indexElem]='hit';
+    resetGame(){
+      this.endGame = false;
+      for(let i = 0; i < 10;i++){
+      
+      for(let j = 0; j< 10;j++){
+        this.enemyTable[i][j] = 'water';
+      }
+      
     }
+    },
+    async shoot(indexRow,indexElem){
+        if(this.endGame == false){
+         let result = await fetch('http://localhost:3000/shoot', {
+           method : 'POST',
+           header : {
+             'Content-Type' : 'application/json'
+           },
+         
+           body : JSON.stringify({
+           user : this.getCookie('userName'),
+           cell : 10*indexRow + indexElem
+         })
+        
+         });
+         let resultJSON = await result.json();
+         this.enemyTable[indexRow][indexElem] = resultJSON['shoot_result'];
+         if(resultJSON['shoot_result'] == 'kill'){
+           for(let i =0; i< resultJSON['cell'].length;i++){
+             let cellNum = resultJSON['cell'][i];
+             this.enemyTable[Math.trunc(cellNum/10)][cellNum % 10] = resultJSON['shoot_result']
+           }
+            await this.getNumShips();
+         }  
+         console.log(resultJSON);
+        }
+        else{
+          this.resetGame();
+        }
+    },
+    async getNumShips(){
+      let result = await fetch('http://localhost:3000/numShips', {
+           method : 'POST',
+           header : {
+             'Content-Type' : 'application/json'
+           },
+         
+           body : JSON.stringify({
+           user : this.getCookie('userName')
+         })
+         });
+           let resultJSON = await result.json();
+           console.log('getNumShips resultJSON:');
+           console.log(resultJSON);
+           this.enemyShips = resultJSON['numUserShips'];
+           this.userShips = resultJSON['numServerShips'];
+           this.endGame = ((this.enemyShips == 0) || (this.userShips == 0)) ? true : false;
+           this.victorySTR = (this.endGame && (this.enemyShips ==0)) ? 'Вы выиграли' : 'Вы проиграли';
+
+    }     
   ,
+     getCookie(name) {
+     var cookieString = document.cookie;
+            var cookieParsed = cookieString.split(';')
+            let hash2 = '';
+            for(let i =0;i<cookieParsed.length;i++){
+                if(cookieParsed[i].indexOf(name)!==-1){
+                    var parsingArr = cookieParsed[i].split('=')
+                    hash2 = parsingArr[1]
+                }
+            }
+     return hash2;
+     },
+    
 imageName(indexRow,indexElem){
       if(this.enemyTable[indexRow][indexElem]=='water'){
         return "https://sun9-67.userapi.com/impg/MApRVZoDHx00PA3mXKHcwBo4TFV-hnC0CUZ67g/gc0iSjaEURg.jpg?size=50x50&quality=96&sign=91c474df6653e582906397410fc3461b&type=album"
@@ -104,4 +181,5 @@ table {
  td.kill{
     background-image: url("https://sun9-2.userapi.com/impg/iXB9DWEAbORikjl4JNgddCQKAN2jNlGqqYWZkw/omEBG_UT7As.jpg?size=50x50&quality=96&sign=9e8857916f6227aa47d96c69cd5615d8&type=album");
  }
+
 </style>
