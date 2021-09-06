@@ -1,6 +1,8 @@
 <template>
 <div>
-    <img draggable = "false" id="ship5" @mouseup="mouseUp('ship5')" @mousedown="mousedown($event, 'ship5')" :src="getSrc('ship5')">
+    <div class="shipContainer">
+    <img  v-for="(pic, picID) in ships" :key="picID" :class="pic.class" :id="pic.id"  :src="getSrc(pic['id'])" draggable = "false" @mouseup="mouseUp(pic['id'])" @mousedown="mousedown($event, pic['id'])">
+    </div>
     <table id = 't1'>
     <caption>Перетащите корабли на поле</caption>
     <tbody id ='t2'>
@@ -16,20 +18,27 @@
 <script>
 /*
 TODO list:
-1.сделать пикчи ко всем кораблям горизон и вертикльно
-2.реализовать движение пикч
-3.добавить привязку к ближайшим углам сетки
 4.анализировать на каких клетках стоит корабль
 5. добавить анализатор, чтобы корабль не выставлялся за границы поля и корабли не соприкасались
-
 */
 export default {
     name: 'setShips',
     data(){
         return{
             readyToClick : true,
+            ships : [
+                {rotate : false, length : 4, id : 'ship0', coords : null, class : 'shipIn'},
+                {rotate : false, length : 3, id : 'ship1', coords : null, class : 'shipIn'},
+                {rotate : false, length : 3, id : 'ship2', coords : null, class : 'shipIn'},
+                {rotate : false, length : 2, id : 'ship3', coords : null, class : 'shipIn'},
+                {rotate : false, length : 2, id : 'ship4', coords : null, class : 'shipIn'},
+                {rotate : false, length : 2, id : 'ship5', coords : null, class : 'shipIn'},
+                {rotate : false, length : 1, id : 'ship6', coords : null, class : 'shipIn'},
+                {rotate : false, length : 1, id : 'ship7', coords : null, class : 'shipIn'},
+                {rotate : false, length : 1, id : 'ship8', coords : null, class : 'shipIn'},
+                {rotate : false, length : 1, id : 'ship9', coords : null, class : 'shipIn'},
+            ],
             table : [],
-            rotate : [false,false,false,false,false,false,false,false,false,false],
             ship4 : "https://sun9-50.userapi.com/impg/AWVru0W51zoy51QGaukz1fUSfapkd7CeJksMfw/tmEltqbic-I.jpg?size=50x200&quality=96&sign=defa0353f12902e5c4b97ba4d6388620&type=album",
             ship4rotate : "https://sun9-43.userapi.com/impg/7GClZHcGeT6pZwBOVYMTND5KrQEEaT5jUcTspw/q-cSP4dNtPI.jpg?size=200x50&quality=96&sign=e506fb20a0057dbb71708aefcbad7cff&type=album",
             ship3 : "https://sun9-11.userapi.com/impg/g208K4Kb6q8qQ3lQfzcSCGj7-PsExHZFTjlM4Q/_wPTH--Odgg.jpg?size=50x150&quality=96&sign=a714f814b6506b4d52630fd67eb5f852&type=album",
@@ -51,27 +60,53 @@ export default {
     },
     methods :{
 
-    getSrc(item_id){
+    getSrc(item_id){//я там менять начал надо продлжитб
+        console.log('getSrc:');
+        console.log(item_id);
+        for(let i=0;i < this.ships.length; i++){
+            if(this.ships[i]['id'] == item_id){
+                if(this.ships[i]['length'] == 4){
+                    return (this.ships[i]['rotate'] ? this.ship4rotate : this.ship4);
+                }
+                if(this.ships[i]['length'] == 3){
+                    return (this.ships[i]['rotate'] ? this.ship3rotate : this.ship3);
+                }
+                if(this.ships[i]['length'] == 2){
+                    return (this.ships[i]['rotate'] ? this.ship2rotate : this.ship2);
+                }
+                if(this.ships[i]['length'] == 1){
+                    return  this.ship1;
+                }
+            }
+        }
         
-        if(item_id == 'ship0'){
-            return (this.rotate[0] ? this.ship4rotate : this.ship4)
-        }
-        if((item_id =='ship1')||(item_id =='ship2')){
-            return (this.rotate[item_id[4]] ? this.ship3rotate : this.ship3)
-        }
-        if((item_id =='ship3')||(item_id =='ship4')||(item_id =='ship5')){
-            return (this.rotate[item_id[4]] ? this.ship2rotate : this.ship2)
-        }
-        if((item_id =='ship6')||(item_id =='ship7')||(item_id =='ship8')||(item_id =='ship9')){
-            return this.ship1
-        }
+    },
+    checkCorrect(){//TODO проверка на корректность постановки
+        
     },
    mouseUp(item_id){
     this.readyToClick = true;
     console.log(item_id);
-    //console.log('------------');
-    //console.log(document.getElementById('t2').getBoundingClientRect().top + window.pageYOffset);
-    //    console.log(document.getElementById('ship5').style.top);
+    let y0 = document.getElementById('t2').getBoundingClientRect().top + window.pageYOffset;//начальные координаты таблицы
+    let x0 = document.getElementById('t2').getBoundingClientRect().left + window.pageXOffset;
+    let x1 = document.getElementById(item_id).getBoundingClientRect().left + window.pageXOffset;//координаты отпускания элемента
+    let y1 = document.getElementById(item_id).getBoundingClientRect().top + window.pageYOffset;
+    let numX = Math.round((x1-x0)/50);
+    let numY = Math.round((y1-y0)/50);
+    console.log(numX);
+    console.log(numY);
+    let idInArr;
+    for (let i=0;i< this.ships.length;i++){
+                if(this.ships[i]['id'] == item_id){ idInArr = i;}
+            }
+
+    if ( (numX >= 0)&&(numX <10)&&(numY >= 0) &&(numY < 10)){
+        this.ships[idInArr]['class'] = 'shipOut';
+        document.getElementById(item_id).style.left = x0 + numX*50 + 'px';
+        document.getElementById(item_id).style.top = y0 + numY*50 + 'px';
+        
+    }
+        
    },
     mousedown($event, item_id){
         let curShip = document.getElementById(item_id);
@@ -89,8 +124,12 @@ export default {
         if (this.readyToClick){
             this.readyToClick = false;
         if($event.button != 0){
-        this.rotate[item_id[4]] = !this.rotate[item_id[4]];
-        this.readyToClick = true;   
+            for (let i=0;i< this.ships.length;i++){
+                if(this.ships[i]['id'] == item_id){
+                    this.ships[i]['rotate'] = !this.ships[i]['rotate'];
+                }
+            }
+         this.readyToClick = true;   
         return;
         }
         
@@ -118,6 +157,19 @@ export default {
 </script>
 
 <style scoped>
+.shipContainer {
+  min-height: 220px;
+  background-color: aqua;
+  
+}
+.shipIn {
+  padding: 0 5px;
+  cursor: pointer;
+  vertical-align: top;
+}
+.shipOut{
+    cursor: pointer;
+}
 table {
     border-collapse: collapse;
     /*убираем пустые промежутки между ячейками*/
@@ -137,7 +189,7 @@ table {
  td {
     border: 1px dotted black;
     background-repeat: no-repeat;
-    cursor: pointer;
+    
  }
 
  td.water{
