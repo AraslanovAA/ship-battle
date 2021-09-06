@@ -11,6 +11,7 @@
       </tr>
     </tbody>
   </table>
+  <button @click="checkCorrect()">{{checkRes}}</button>
   </div>
 </template>
 
@@ -18,25 +19,25 @@
 <script>
 /*
 TODO list:
-4.анализировать на каких клетках стоит корабль
-5. добавить анализатор, чтобы корабль не выставлялся за границы поля и корабли не соприкасались
+6. заменить консоль логи о неправильной постановке корабля на подсказки
 */
 export default {
     name: 'setShips',
     data(){
         return{
             readyToClick : true,
+            checkRes : 'Click me!',
             ships : [
-                {rotate : false, length : 4, id : 'ship0', coords : null, class : 'shipIn'},
-                {rotate : false, length : 3, id : 'ship1', coords : null, class : 'shipIn'},
-                {rotate : false, length : 3, id : 'ship2', coords : null, class : 'shipIn'},
-                {rotate : false, length : 2, id : 'ship3', coords : null, class : 'shipIn'},
-                {rotate : false, length : 2, id : 'ship4', coords : null, class : 'shipIn'},
-                {rotate : false, length : 2, id : 'ship5', coords : null, class : 'shipIn'},
-                {rotate : false, length : 1, id : 'ship6', coords : null, class : 'shipIn'},
-                {rotate : false, length : 1, id : 'ship7', coords : null, class : 'shipIn'},
-                {rotate : false, length : 1, id : 'ship8', coords : null, class : 'shipIn'},
-                {rotate : false, length : 1, id : 'ship9', coords : null, class : 'shipIn'},
+                {rotate : false, length : 4, id : 'ship0', coords : null, expand : null, class : 'shipIn'},
+                {rotate : false, length : 3, id : 'ship1', coords : null, expand : null, class : 'shipIn'},
+                {rotate : false, length : 3, id : 'ship2', coords : null, expand : null,class : 'shipIn'},
+                {rotate : false, length : 2, id : 'ship3', coords : null, expand : null, class : 'shipIn'},
+                {rotate : false, length : 2, id : 'ship4', coords : null, expand : null, class : 'shipIn'},
+                {rotate : false, length : 2, id : 'ship5', coords : null, expand : null, class : 'shipIn'},
+                {rotate : false, length : 1, id : 'ship6', coords : null, expand : null, class : 'shipIn'},
+                {rotate : false, length : 1, id : 'ship7', coords : null, expand : null, class : 'shipIn'},
+                {rotate : false, length : 1, id : 'ship8', coords : null, expand : null, class : 'shipIn'},
+                {rotate : false, length : 1, id : 'ship9', coords : null, expand : null, class : 'shipIn'},
             ],
             table : [],
             ship4 : "https://sun9-50.userapi.com/impg/AWVru0W51zoy51QGaukz1fUSfapkd7CeJksMfw/tmEltqbic-I.jpg?size=50x200&quality=96&sign=defa0353f12902e5c4b97ba4d6388620&type=album",
@@ -56,13 +57,12 @@ export default {
       }
       this.table.push(td);
     }
-        console.log(this.table);
+        
     },
     methods :{
 
     getSrc(item_id){//я там менять начал надо продлжитб
-        console.log('getSrc:');
-        console.log(item_id);
+
         for(let i=0;i < this.ships.length; i++){
             if(this.ships[i]['id'] == item_id){
                 if(this.ships[i]['length'] == 4){
@@ -81,20 +81,122 @@ export default {
         }
         
     },
-    checkCorrect(){//TODO проверка на корректность постановки
+    checkCorrect(){// проверка на корректность постановки
         
+        let y0 = document.getElementById('t2').getBoundingClientRect().top + window.pageYOffset;//начальные координаты таблицы
+        let x0 = document.getElementById('t2').getBoundingClientRect().left + window.pageXOffset;
+        
+        let numX;
+        let numY;
+        let ship;
+        let x1;
+        let y1;
+        let res = true;
+        for(let i=0;i < this.ships.length;i++){
+            ship = document.getElementById(this.ships[i]['id']);
+            x1 = ship.getBoundingClientRect().left + window.pageXOffset;
+            y1 = ship.getBoundingClientRect().top + window.pageYOffset;
+            numX = Math.round((x1-x0)/50);
+            numY = Math.round((y1-y0)/50);
+            
+            if ( (numX >= 0)&&(numX <10)&&(numY >= 0) &&(numY < 10)){
+            if(this.ships[i]['rotate']){
+                if(!(numX + this.ships[i]['length'] - 1  <= 9)){//проверка на вылезание за границы поля
+                    res = false;
+                    console.log(this.ships[i]['id'] +' находится вне поля');
+                }
+                else{
+                    let curShipCoords = [];
+                    for(let j =0; j < this.ships[i]['length'];j++){
+                        curShipCoords.push(10*(numY) + (numX+j));
+                    }
+                    this.ships[i]['coords'] = curShipCoords;
+                }
+            }
+            else{
+                    if(!(numY + this.ships[i]['length'] - 1  <= 9)){//проверка на вылезание за границы поля
+                    res = false;
+                    console.log(this.ships[i]['id'] +' находится вне поля');
+                }
+                else{
+                    let curShipCoords = [];
+                    for(let j =0; j < this.ships[i]['length'];j++){
+                        curShipCoords.push(10*(numY +j) + (numX));
+                    }
+                    this.ships[i]['coords'] = curShipCoords;
+                }
+            }
+            
+
+            
+            }
+            else{
+                console.log(this.ships[i]['id'] +' находится вне поля');//корабль не поставили на поле
+                res = false;
+            }
+        }
+        this.checkRes = res;
+        if(res){//если все корабли стоят на поле проверяем, что они не пересекаются
+            this.intersection();
+        }
+        
+    },
+    intersection(){
+        for(let i=0;i< this.ships.length;i++){
+            let yCoord= Math.trunc(this.ships[i]['coords'][0]/10);
+            let xCoord = this.ships[i]['coords'][0]%10;
+            let extendCoords = [];
+            if(this.ships[i]['rotate']){//расширенные коориднаты для горизонтального корабля
+                for(let xW =xCoord-1; xW <= xCoord + this.ships[i]['length']; xW++){
+                    for(let yW = yCoord -1; yW <=yCoord +1; yW++){
+                        if( (xW >=0)&&(xW<=9)&&(yW>=0)&&(yW<=9)){
+                            extendCoords.push(10*yW + xW);
+                        }
+                    }
+                }
+            }
+            else{
+
+                for(let yW =yCoord-1; yW <= yCoord + this.ships[i]['length']; yW++){
+                    for(let xW = xCoord -1; xW <=xCoord +1; xW++){
+                        if( (xW >=0)&&(xW<=9)&&(yW>=0)&&(yW<=9)){
+                            extendCoords.push(10*yW + xW);
+                        }
+                    }
+                }
+
+            }
+            this.ships[i]['expand'] = extendCoords;
+            
+        }
+        //TODO провверить что ни у 1 корабля координаты не пересекаются с расширенными координатами других кораблей
+
+        for(let i =0; i < this.ships.length - 1;i++){
+            for(let j= i+1; j < this.ships.length;j++){
+
+                for(let iCell =0; iCell < this.ships[i]['length'];iCell++){
+                    if( this.ships[j]['expand'].includes(this.ships[i]['coords'][iCell])){
+                        // console.log('-----пересечение-----');
+                        // console.log(this.ships[i]['id']);
+                        // console.log(this.ships[j]['id']);
+                        this.checkRes = 'корабли пересекаются'
+                    }
+                }
+            }
+        }
+
+
     },
    mouseUp(item_id){
     this.readyToClick = true;
-    console.log(item_id);
+    
     let y0 = document.getElementById('t2').getBoundingClientRect().top + window.pageYOffset;//начальные координаты таблицы
     let x0 = document.getElementById('t2').getBoundingClientRect().left + window.pageXOffset;
     let x1 = document.getElementById(item_id).getBoundingClientRect().left + window.pageXOffset;//координаты отпускания элемента
     let y1 = document.getElementById(item_id).getBoundingClientRect().top + window.pageYOffset;
     let numX = Math.round((x1-x0)/50);
     let numY = Math.round((y1-y0)/50);
-    console.log(numX);
-    console.log(numY);
+
     let idInArr;
     for (let i=0;i< this.ships.length;i++){
                 if(this.ships[i]['id'] == item_id){ idInArr = i;}
